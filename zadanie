@@ -1,0 +1,188 @@
+-- I did it in MSSQL server
+
+USE [prueba1]
+GO
+
+
+SET ANSI_NULLS ON
+GO
+SET QUOTED_IDENTIFIER ON
+GO
+
+
+-- lets create the tables:
+
+CREATE TABLE Users (  
+    userId INT IDENTITY PRIMARY KEY,
+    age INT
+);
+
+CREATE TABLE Items(
+	itemId INT IDENTITY PRIMARY KEY,
+	price INT
+);
+
+
+CREATE TABLE Purchases (  
+    purchaseId INT IDENTITY PRIMARY KEY,
+    userId INT,
+	itemId INT,
+	date DATE,
+	month INT,
+	FOREIGN KEY(userId) REFERENCES Users(userId),
+	FOREIGN KEY(itemId) REFERENCES Items(itemId)
+);
+
+-- lets poblate the tables with random numbers
+
+-- for users  table :
+
+DECLARE @number int
+SET @number = 1 
+
+WHILE @number <= 20
+BEGIN
+	INSERT INTO Users(age) VALUES (FLOOR(RAND()*100))
+	SET @number = @number + 1
+END
+
+
+-- for items talbe
+
+DECLARE @number int
+SET @number = 1 
+
+WHILE @number <= 20
+BEGIN
+	INSERT INTO Items(price) VALUES (FLOOR(RAND()*10000))
+	SET @number = @number + 1
+END
+
+
+-- for purchases table :
+
+DECLARE @number int
+SET @number = 1 
+DECLARE @rdate DATE
+
+WHILE @number <= 1000
+BEGIN
+    SET @rdate = DATEADD(DAY, ABS(CHECKSUM(NEWID()) % 364 ), '2022-01-01');
+    SET @number = @number + 1;
+
+    INSERT INTO Purchases(userId, itemId, date, month) 
+    VALUES (RAND()*19+1, RAND()*19+1,@rdate,MONTH(@rdate));
+END
+
+
+/////////////////////////////////////////////////////
+
+
+Zadanie 1:
+
+a)
+-- lets create a variable with the number of user in the age range (not the nicest way but fast)
+declare @users18to25 int
+set @users18to25 = (select count(userId) from users where age >= 18 and age <= 25)
+
+
+SELECT AVG(result2.average) 
+FROM (SELECT [average] = AVG(result.average)/@users18to25
+FROM (SELECT i.price, 
+		p.userId, 
+		u.age, 
+		p.date, 
+		p.month,
+		[average] = (sum(i.price) over(partition by p.month))
+FROM Purchases as p
+JOIN Users as u
+ON p.userId = u.userId
+JOIN Items as i
+ON i.itemId = p.itemId
+WHERE u.age>=18 AND u.age <=25) as result
+group by month) as result2;
+
+
+b) 
+declare @users18to25 int
+set @users18to25 = (select count(userId) from users where age >= 26 and age <= 35)
+
+
+
+SELECT AVG(result2.average) 
+FROM (SELECT [average] = AVG(result.average)/@users18to25
+FROM (SELECT i.price, 
+		p.userId, 
+		u.age, 
+		p.date, 
+		p.month,
+		[average] = (sum(i.price) over(partition by p.month))
+FROM Purchases as p
+JOIN Users as u
+ON p.userId = u.userId
+JOIN Items as i
+ON i.itemId = p.itemId
+WHERE u.age>=26 AND u.age <=35) as result
+group by month) as result2;
+
+
+////////////////////////////////////////
+
+Zadanie 2: 
+
+
+SELECT [sales] = MAX(result1.salesbymonth), result1.month
+FROM (SELECT i.price, 
+		p.userId, 
+		u.age, 
+		p.date, 
+		p.month,
+		[salesbymonth] = (sum(i.price) over(partition by p.month) )
+FROM Purchases as p
+JOIN Users as u
+ON p.userId = u.userId
+JOIN Items as i
+ON i.itemId = p.itemId
+WHERE u.age>=35) as result1
+GROUP BY result1.month
+ORDER BY sales DESC;
+
+
+////////////////////////////////////////////
+
+Zadanie 3: 
+
+
+SELECT [itemsales] = SUM(result1.price), result1.itemId 
+FROM (SELECT  i.price,
+		i.itemId
+FROM Purchases as p
+JOIN Items as i
+ON i.itemId = p.itemId) as result1
+GROUP BY result1.itemId
+ORDER BY itemsales DESC;
+
+////////////////////////////////////////////
+
+Zadanie 4: 
+-- given in %
+
+declare @sales INT
+set @sales = (SELECT [itemsales] = SUM(result1.price) 
+FROM (SELECT  i.price,
+		i.itemId
+FROM Purchases as p
+JOIN Items as i
+ON i.itemId = p.itemId) as result1)
+
+SELECT TOP (3) [itemsales] = 100*SUM(result1.price)/(@sales+0.000001), result1.itemId 
+FROM (SELECT  i.price,
+		i.itemId
+FROM Purchases as p
+JOIN Items as i
+ON i.itemId = p.itemId) as result1
+GROUP BY result1.itemId
+ORDER BY itemsales DESC;
+
+
+/////////////////////
